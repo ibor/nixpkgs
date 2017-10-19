@@ -34,6 +34,11 @@ self: super: {
   ghcjs-base = null;
   ghcjs-prim = null;
 
+  # Some packages add this (non-existent) dependency to express that they
+  # cannot compile in a given configuration. Win32 does this, for example, when
+  # compiled on Linux. We provide the name to avoid evaluation errors.
+  unbuildable = throw "package depends on meta package 'unbuildable'";
+
   # cabal-install needs Cabal 2.x. hackage-security's test suite does not compile with
   # Cabal 2.x, though. See https://github.com/haskell/hackage-security/issues/188.
   cabal-install = super.cabal-install.overrideScope (self: super: { Cabal = self.Cabal_2_0_0_2; });
@@ -51,14 +56,14 @@ self: super: {
   clock = dontCheck super.clock;
   Dust-crypto = dontCheck super.Dust-crypto;
   hasql-postgres = dontCheck super.hasql-postgres;
-  hspec-expectations = dontCheck super.hspec-expectations;
   hspec = super.hspec.override { stringbuilder = dontCheck super.stringbuilder; };
   hspec-core = super.hspec-core.override { silently = dontCheck super.silently; temporary = dontCheck super.temporary; };
+  hspec-expectations = dontCheck super.hspec-expectations;
   HTTP = dontCheck super.HTTP;
+  http-streams = dontCheck super.http-streams;
   nanospec = dontCheck super.nanospec;
   options = dontCheck super.options;
   statistics = dontCheck super.statistics;
-  http-streams = dontCheck super.http-streams;
 
   # segfault due to missing return: https://github.com/haskell/c2hs/pull/184
   c2hs = dontCheck super.c2hs;
@@ -93,7 +98,7 @@ self: super: {
       name = "git-annex-${drv.version}-src";
       url = "git://git-annex.branchable.com/";
       rev = "refs/tags/" + drv.version;
-      sha256 = "15d29hmbl146axjgbm4qhxpz6ypcq1bjf2aj29yhwh5jmznh58i2";
+      sha256 = "0ky3avbda1avccalkh7ifjnll37cjjmdyypw9m1glsrzgzmr5lbr";
     };
   })).override {
     dbus = if pkgs.stdenv.isLinux then self.dbus else null;
@@ -207,12 +212,7 @@ self: super: {
 
   double-conversion = if !pkgs.stdenv.isDarwin
     then super.double-conversion
-    else addExtraLibrary (overrideCabal super.double-conversion (drv:
-      {
-        postPatch = ''
-          substituteInPlace double-conversion.cabal --replace stdc++ c++
-        '';
-      })) pkgs.libcxx;
+    else addExtraLibrary super.double-conversion pkgs.libcxx;
 
   inline-c-cpp = if !pkgs.stdenv.isDarwin
     then super.inline-c-cpp
@@ -891,9 +891,8 @@ self: super: {
   # https://github.com/danidiaz/tailfile-hinotify/issues/2
   tailfile-hinotify = dontCheck super.tailfile-hinotify;
 
-  # build liquidhaskell with the proper (old) aeson version
-  liquidhaskell = super.liquidhaskell.override { aeson = self.aeson_0_11_3_0; };
-  aeson_0_11_3_0 = super.aeson_0_11_3_0.override { base-orphans = self.base-orphans_0_5_4; };
+  # build liquidhaskell with the proper (new) aeson version
+  liquidhaskell = super.liquidhaskell.override { aeson = dontCheck self.aeson_1_2_2_0; };
 
   # Test suite fails: https://github.com/lymar/hastache/issues/46.
   # Don't install internal mkReadme tool.
@@ -936,12 +935,6 @@ self: super: {
     sha256 = "1vss7b99zrhw3r29krl1b60r4qk0m2mpwmrz8q8zdxrh33hb8pd7";
   });
 
-  # happy 1.19.6+ broke the Agda build. Sticking with the previous version
-  # avoided that issue, but now the build fails with a segmentation fault
-  # during the install phase for no apparent reason:
-  # https://hydra.nixos.org/build/60678124
-  Agda = markBroken (super.Agda.override { happy = self.happy_1_19_5; });
-
   # cryptol-2.5.0 doesn't want happy 1.19.6+.
   cryptol = super.cryptol.override { happy = self.happy_1_19_5; };
 
@@ -957,11 +950,23 @@ self: super: {
     protolude = super.protolude_0_2;
   };
 
+  # test suite requires git and does a bunch of git operations
+  restless-git = dontCheck super.restless-git;
+
   # This tool needs the latest hackage-db version. Using the latest version of
   # optparse-applicative allows us to generate completions for fish and zsh.
   cabal2nix = super.cabal2nix.overrideScope (self: super: {
     hackage-db = self.hackage-db_2_0;
     optparse-applicative = self.optparse-applicative_0_14_0_0;
   });
+
+  # Break "hpack >=0.17.0 && <0.19".
+  stack = doJailbreak super.stack;
+
+  # https://github.com/mgajda/json-autotype/issues/15
+  json-autotype = doJailbreak super.json-autotype;
+
+  # Depends on broken fluid.
+  fluid-idl-http-client = markBroken super.fluid-idl-http-client;
 
 }
